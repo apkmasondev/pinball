@@ -2,7 +2,9 @@
 
 Autorska maszyna pinballowa w przeglądarce. Nocny japoński ogród: księżyc nad torii, koi pod taflą wody, lakierowane panele i mosiężne prowadnice. Trzy kule, fizyka w stałym kroku 240 Hz, własne oświetlenie i muzyka.
 
-**▶ Zagraj: https://apkmasondev.github.io/pinball/**
+**▶ Zagraj: https://apkmason.dev/pinball/**
+
+Adres zapasowy: https://apkmasondev.github.io/pinball/
 
 Gra jest w całości statyczna. Nie wymaga konta, nie korzysta z CDN, analityki ani żadnych usług zewnętrznych. Po wczytaniu działa bez internetu.
 
