@@ -1,0 +1,21 @@
+# Nothing is published unless it is listed below. The repository holds exactly what
+# GitHub Pages needs to serve the game, and nothing else.
+/*
+
+!/.gitignore
+!/index.html
+!/style.css
+!/README.md
+!/src/
+!/public/
+
+# Never publish, wherever they appear:
+# source art sheets, source audio, build/dev tooling, tests, working reports,
+# the duplicated dist/ bundle, editor and OS leftovers.
+*.zip
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+node_modules/
