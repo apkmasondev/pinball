@@ -43,7 +43,9 @@ Rekord, trzy suwaki głośności i ustawienie ograniczenia ruchu zapisują się 
 
 Stół składa się z 57 zasobów graficznych: 56 sprite'ów oraz ciągłej tafli wody. Grafika wygenerowana na potrzeby tego projektu, cięta na elementy runtime i czyszczona z artefaktów kanału alfa. Każdy sprite rysuje się we własnych proporcjach.
 
-**Audio.** Web Audio. Zapętlona ścieżka z dwusekundowym przenikaniem na granicy pętli, automatycznie ściszana pod sygnałami jackpot / multiball / extra ball. Efekty syntezowane: pentatonika, struny, pogłos, szum wody, osobne dźwięki mechaniki, limiter miksu. Osobne szyny Master / Music / SFX. Gdy ścieżka się nie wczyta, gra wraca do w pełni proceduralnego podkładu. Dźwięk startuje dopiero po interakcji użytkownika, zgodnie z polityką przeglądarek.
+**Audio.** Web Audio. Zapętlona ścieżka AAC-LC 96 kb/s z dwusekundowym przenikaniem na granicy pętli, automatycznie ściszana pod sygnałami jackpot / multiball / extra ball. Efekty syntezowane: pentatonika, struny, pogłos, szum wody, osobne dźwięki mechaniki, limiter miksu. Osobne szyny Master / Music / SFX. Gdy ścieżka się nie wczyta, gra wraca do w pełni proceduralnego podkładu. Dźwięk startuje dopiero po interakcji użytkownika, zgodnie z polityką przeglądarek.
+
+O formacie: kontener nie ma wpływu na płynność. Po zdekodowaniu 185,3 s stereo 44,1 kHz zajmuje **62 MB** pamięci niezależnie od tego, czy przyszło z MP3, AAC czy Opusa — liczy się tylko rozmiar pobrania i jednorazowy czas dekodowania. Zmierzone warianty tego samego materiału: MP3 128 kb/s 2 896 KB, AAC 96 kb/s 2 232 KB, Opus 80 kb/s 2 013 KB. Wybrano AAC: jakościowo odpowiada MP3 128 kb/s, waży o 23% mniej i dekoduje się we wszystkich przeglądarkach, w odróżnieniu od Opusa w WebM na Safari. Dekodowanie zajmuje około 310 ms, asynchronicznie i bez blokowania pętli klatek.
 
 **Wydajność.** DPR ograniczony do 2, efekty mają limity liczby obiektów. W przeglądarce testowej: klatka około 16,7 ms, aktualizacja i rysowanie 0,8–1,9 ms, również w multiballu z trzema kulami. To pomiar jednego środowiska, nie gwarancja 60 FPS na każdym urządzeniu.
 
@@ -72,6 +74,6 @@ Repozytorium zawiera wyłącznie pliki potrzebne do uruchomienia gry. Materiały
 
 ## Materiały i licencja
 
-Grafika powstała na potrzeby tego projektu. Warstwa dźwiękowa w `public/` jest pochodną materiałów wyjściowych: `garden-soundtrack.mp3` to przetworzona i zapętlona wersja dostarczonego utworu, a `drain.mp3` to 1,5-sekundowa próbka przygotowana z nagrania pobranego z Pixabay (autor podpisany jako `freesound_community`). Materiały źródłowe nie są tu rozpowszechniane.
+Grafika powstała na potrzeby tego projektu. Warstwa dźwiękowa w `public/` jest pochodną materiałów wyjściowych: `garden-soundtrack.m4a` to przetworzona i zapętlona wersja dostarczonego utworu, a `drain.mp3` to 1,5-sekundowa próbka przygotowana z nagrania pobranego z Pixabay (autor podpisany jako `freesound_community`). Materiały źródłowe nie są tu rozpowszechniane.
 
 Projekt nie ma jeszcze wybranej licencji, więc domyślnie obowiązują zwykłe prawa autorskie. Przed ponownym wykorzystaniem warstwy dźwiękowej sprawdź warunki licencji uzyskane przy pobraniu materiałów wyjściowych.

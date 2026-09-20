@@ -30,7 +30,7 @@ export class GardenAudio {
     if (this.trackState !== 'idle') return;
     this.trackState = 'loading';
     try {
-      const response = await fetch('public/garden-soundtrack.mp3');
+      const response = await fetch('public/garden-soundtrack.m4a');
       if (!response.ok) throw new Error('Soundtrack unavailable');
       this.trackBuffer = await this.ctx.decodeAudioData(await response.arrayBuffer());
       const source = this.ctx.createBufferSource(), fade = this.ctx.createGain();
