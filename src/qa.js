@@ -13,6 +13,36 @@ export function mountQA(game, renderer, audio, update) {
   controls.innerHTML = '<button id="qa-pull">Hold full pull</button> <button id="qa-release">Release plunger</button> <button id="qa-sling-left">Left sling shot</button> <button id="qa-sling-right">Right sling shot</button>';
   controls.innerHTML += ' <button id="qa-target-left">Left target shot</button> <button id="qa-target-right">Right target shot</button>';
   panel.insertBefore(controls, panel.querySelector('pre'));
+  const gardenControls = document.createElement('div');
+  gardenControls.innerHTML = '<button id="qa-lotus-mode">Golden Lotus scenario</button> <button id="qa-lotus-hit">Lotus bumper shot</button> <button id="qa-finale-ready">Finale ready scenario</button> <button id="qa-finale-step">Finale next shot</button> <button id="qa-garden-expire">Expire garden mode</button>';
+  panel.insertBefore(gardenControls, panel.querySelector('pre'));
+  const gardenFixture = () => {
+    autoUntil = 0; audio.init().catch(() => {}); game.start();
+    document.getElementById('start-panel').hidden = true; document.getElementById('live-panel').hidden = false;
+    const b = game.physics.balls[0]; b.ready = false; b.shooter = false; b.x = 291; b.y = 112; b.captured = 3600;
+    return b;
+  };
+  document.getElementById('qa-lotus-mode').onclick = () => {
+    const ball = gardenFixture(); for (let i = 0; i < 4; i++) game.handle({ type: 'spinner', ball }); update();
+  };
+  document.getElementById('qa-lotus-hit').onclick = () => {
+    if (game.state !== 'playing') return; const b = game.physics.balls[0]; if (!b) return;
+    b.ready = false; b.shooter = false; b.captured = 0; b.x = 291; b.y = 438; b.vx = 0; b.vy = -180; b.cooldowns.bumper2 = 0;
+  };
+  document.getElementById('qa-finale-ready').onclick = () => {
+    const ball = gardenFixture();
+    for (let i = 0; i < 6; i++) game.handle({ type: `target${i}`, ball });
+    game.startMultiball(); game.handle({ type: 'scoop', ball });
+    game.pending = []; game.multiball = false; game.saveUntil = 0; update();
+  };
+  document.getElementById('qa-finale-step').onclick = () => {
+    if (game.state !== 'playing') return; const ball = game.physics.balls[0]; if (!ball) return;
+    game.handle({ type: game.garden.finaleActive ? ['target0', 'target3', 'spinner', 'bumper2', 'scoop'][game.garden.step] : 'scoop', ball }); update();
+  };
+  document.getElementById('qa-garden-expire').onclick = () => {
+    if (game.garden.lotusActive) game.garden.lotusUntil = game.time + .01;
+    if (game.garden.finaleActive) game.garden.finaleUntil = game.time + .01;
+  };
   document.getElementById('qa-blur').onclick = () => window.dispatchEvent(new Event('blur'));
   let autoUntil = 0; const frameSamples = [], workSamples = [];
   const maxSlingBend = [0, 0];
@@ -76,5 +106,6 @@ export function mountQA(game, renderer, audio, update) {
     for (const i of [0, 1]) targetPeak[i] = Math.max(targetPeak[i], Math.abs(renderer.targetMotion(i * 3)));
     reflectionPeak = Math.max(reflectionPeak, renderer.reflections.length);
     document.getElementById('qa-status').textContent += `\ntargetPeak=${targetPeak.map(v => v.toFixed(2))} reflectionPeak=${reflectionPeak}`;
+    document.getElementById('qa-status').textContent += `\ngarden=${JSON.stringify({ charge: game.garden.charge, lotus: game.garden.lotusActive, pot: game.garden.pot, collected: game.garden.collected, seals: game.garden.seals, finale: game.garden.finaleActive, step: game.garden.step, completed: game.garden.completed, deferred: game.garden.deferredMultiball })}`;
   }, 45);
 }

@@ -1,4 +1,5 @@
 import { Physics, STEP, clamp } from './physics.js';
+import { GardenModes } from './garden-modes.js';
 export class Game {
   constructor(onEvent = () => {}) {
     this.notify = onEvent; this.physics = new Physics(e => this.handle(e)); this.state = 'attract';
@@ -6,6 +7,7 @@ export class Game {
     this.resetStats();
   }
   resetStats() {
+    this.garden = new GardenModes(this);
     this.score = 0; this.ballNumber = 1; this.multiplier = 1; this.combo = 0; this.lastShot = ''; this.comboUntil = 0;
     this.moon = [false, false, false]; this.koi = [false, false, false]; this.sakura = [false, false, false];
     this.hits = 0; this.bonus = 0; this.saveUntil = 0; this.multiball = false; this.jackpots = 0; this.extraBalls = 0;
@@ -16,6 +18,7 @@ export class Game {
   start() {
     this.resetStats(); this.physics = new Physics(e => this.handle(e)); this.time = 0; this.accumulator = 0;
     this.state = 'playing'; this.input.left = this.input.right = false; this.physics.addBall();
+    this.notify({ type: 'reset' });
     this.message('OGRÓD BUDZI SIĘ', 'Przytrzymaj SPACJĘ i puść, aby wystrzelić', 'start');
   }
   message(title, subtitle = '', kind = 'event') { this.notify({ type: 'message', title, subtitle, kind }); }
@@ -44,6 +47,7 @@ export class Game {
     this.lastNudge = this.time; this.tilt += 1.05;
     if (this.tilt >= 2.8) {
       this.tilted = true; this.input.left = this.input.right = false; this.saveUntil = 0; this.bonus = 0;
+      this.garden.endBall();
       this.message('TILT', 'Za mocno. Flippery odpoczywają do następnej kuli.', 'tilt'); this.notify({ type: 'tilt' }); return;
     }
     this.physics.balls.forEach(b => { if (!b.ready && !b.captured) { b.vx += direction * 100; b.vy -= 95; } });
@@ -69,6 +73,7 @@ export class Game {
   }
   startMultiball() {
     if (this.multiball) return;
+    if (this.garden.finaleActive) { this.garden.deferredMultiball = true; return; }
     this.multiball = true; this.jackpots = 0; this.saveUntil = this.time + 13;
     this.pending.push({ at: this.time + .6, action: 'multi' }, { at: this.time + 1.3, action: 'multi' });
     this.message('MOONLIGHT MULTIBALL', 'Trzy kule · traf w torii po jackpot', 'multiball'); this.notify({ type: 'multiball' });
@@ -84,6 +89,7 @@ export class Game {
     if (e.type === 'drain') { this.drain(); return; }
     if (e.type === 'search') { this.stats.searches++; return; }
     if (this.tilted) return;
+    if (this.garden.shot(e)) return;
     if (/^bumper\d/.test(e.type)) {
       this.stats.bumpers++; this.hits++; this.addScore(250, b.x, b.y);
       if (this.hits % 12 === 0) { this.multiplier = Math.min(8, this.multiplier + 1); this.message('LOTOS ROZKWITA', `Mnożnik punktów ×${this.multiplier}`, 'multiplier'); }
@@ -92,8 +98,8 @@ export class Game {
       this.stats.targets++; this.addScore(bank[n] ? 150 : 1000, b.x, b.y); this.shot(e.type, b.x, b.y); bank[n] = true;
       if (bank.every(Boolean)) {
         bank.fill(false); this.addScore(3500, b.x, b.y);
-        if (i < 3) { this.koiUntil = this.time + 22; this.message('KOI RUN', 'Podwójne punkty przez 22 sekundy', 'koi'); this.notify({ type: 'koi' }); }
-        else { this.multiplier = Math.min(8, this.multiplier + 1); this.message('SAKURA BLOOM', `Mnożnik punktów ×${this.multiplier}`, 'sakura'); }
+        if (i < 3) { this.koiUntil = this.time + 22; this.message('KOI RUN', 'Podwójne punkty przez 22 sekundy', 'koi'); this.notify({ type: 'koi' }); this.garden.seal('koi'); }
+        else { const capped = this.multiplier === 8; this.multiplier = Math.min(8, this.multiplier + 1); this.message('SAKURA BLOOM', `Mnożnik punktów ×${this.multiplier}`, 'sakura'); this.garden.sakuraReward(capped); }
       }
     } else if (e.type === 'lane') {
       this.moon[e.index] = true; this.addScore(600, b.x, b.y); this.shot('lane', b.x, b.y);
@@ -110,6 +116,7 @@ export class Game {
         this.addScore(superJackpot ? 50000 : 15000, 291, 140, superJackpot ? 'SUPER JACKPOT' : 'JACKPOT');
         this.message(superJackpot ? 'SUPER JACKPOT' : 'TORII JACKPOT', superJackpot ? 'Księżyc rozświetla cały ogród' : `${this.jackpots % 3} / 3 do super jackpota`, 'jackpot');
         this.notify({ type: 'jackpot', super: superJackpot });
+        this.garden.seal('moon');
       } else {
         this.addScore(3000, 291, 140, 'TORII');
         const unlit = this.moon.indexOf(false); if (unlit >= 0) this.moon[unlit] = true;
@@ -129,6 +136,7 @@ export class Game {
       return;
     }
     this.multiball = false;
+    this.garden.endBall();
     const bonus = this.tilted ? 0 : Math.floor(this.bonus * this.multiplier);
     this.score += bonus; this.highScore = Math.max(this.highScore, this.score);
     this.message('BONUS OGRODU', `+${bonus.toLocaleString('pl-PL')} · mnożnik ×${this.multiplier}`, 'bonus');
@@ -146,6 +154,7 @@ export class Game {
     this.accumulator += Math.min(dt, .1);
     while (this.accumulator >= STEP) {
       this.time += STEP; this.tilt = Math.max(0, this.tilt - STEP * .16);
+      this.garden.tick();
       if (this.charging) this.charge = clamp(this.charge + STEP * .8, 0, 1);
       if (this.comboUntil < this.time) this.combo = 0;
       for (const p of [...this.pending]) if (p.at <= this.time) {

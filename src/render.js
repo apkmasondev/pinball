@@ -1,4 +1,5 @@
 import { W, H, bumpers, targets, slings, clamp } from './physics.js';
+import { LOTUS_CHARGE } from './garden-modes.js';
 
 const TAU = Math.PI * 2;
 // Presentation margin for the external plunger; the physical playfield stays 1040 high.
@@ -59,6 +60,11 @@ export class Renderer {
     this.banner = null; this.blobs = new Map(); this.dimmed = new Map(); this.shadows = new Map();
     this.captures = new Map();
     this.submerged = new Map(); this.reflections = [];
+    const golden = document.createElement('canvas'), lotus = assets['bumper-lotus'];
+    golden.width = lotus.width; golden.height = lotus.height;
+    const gold = golden.getContext('2d'); gold.drawImage(lotus, 0, 0);
+    gold.globalCompositeOperation = 'source-atop'; gold.fillStyle = '#f7c84948'; gold.fillRect(0, 0, golden.width, golden.height);
+    this.assets['bumper-golden'] = golden;
     this.reflectors = [
       ...bumpers.map((b, i) => ({ id: `bumper${i}`, x: b.x, y: b.y, rgb: '255,219,153' })),
       ...targets.map((p, i) => ({ id: `target${i}`, x: p.x, y: p.y, rgb: i < 3 ? '174,236,211' : '255,190,199' })),
@@ -711,6 +717,11 @@ export class Renderer {
 
   // --- events --------------------------------------------------------------
   event(e) {
+    if (e.type === 'reset') {
+      this.particles = []; this.ripples = []; this.points = []; this.lights = {};
+      this.banner = null; this.flash = 0; this.shake = 0; this.captures.clear();
+      return;
+    }
     if (e.type === 'message' && e.kind === 'start' && this.game.time === 0) {
       this.particles = []; this.ripples = []; this.points = []; this.lights = {};
       this.banner = null; this.flash = 0; this.shake = 0;
@@ -740,7 +751,7 @@ export class Renderer {
         this.banner.title = `COMBO ×${e.count}`; this.banner.life = 1.1;
       } else this.banner = { title: `COMBO ×${e.count}`, tone: '#f0d79b', life: 1.1, total: 1.1, startedAt: this.t };
     }
-    if (['jackpot', 'multiball', 'extra'].includes(e.type)) {
+    if (['jackpot', 'multiball', 'extra', 'lotusCollect', 'finaleWon'].includes(e.type)) {
       this.lights[e.type] = this.t;
       this.flash = 1; this.flashColor = e.type === 'multiball' ? '150,200,255' : '240,205,130';
       this.shake = Math.max(this.shake, e.type === 'multiball' ? 5 : 3);
@@ -901,6 +912,9 @@ export class Renderer {
     }
     this.shake *= Math.exp(-dt * 9);
     this.reflections = this.collectReflections();
+    const garden = game.garden, objective = garden.objective();
+    const guidance = game.state === 'playing' || game.state === 'paused';
+    const pulse = this.reducedMotion ? .36 : .28 + .12 * Math.sin(this.t * 3);
     c.drawImage(this.pondBase, 0, 0, W, H);
     this.drawPond(c, koiRun);
     c.drawImage(this.static, 0, 0, W, H);
@@ -914,6 +928,20 @@ export class Renderer {
     this.lamp(c, 291, 88, 92, '255,233,176', (multiball ? .36 : .22) * breath);
     this.lamp(c, 291, 430, 190, multiball ? '122,178,255' : '120,168,150', multiball ? .2 : .07);
     if (koiRun) this.lamp(c, 291, 560, 210, '120,226,196', .11 + Math.sin(this.t * 4) * .03);
+    if (garden.finaleActive || garden.completed) {
+      const strength = garden.finaleActive ? .3 : .12;
+      [[70,566], [518,560], [236,132], [346,132], [291,88]].forEach(([x,y], i) => {
+        const earned = garden.completed || i <= garden.step;
+        if (earned) this.lamp(c, x, y, 68, i % 2 ? '255,211,137' : '180,218,239', strength);
+      });
+    }
+    if (garden.lotusActive) {
+      this.lamp(c, 291, 391, 65, '255,205,92', .18);
+      // Small reflected streaks follow the water texture without bleaching it.
+      c.save(); c.strokeStyle = '#e9bd5b'; c.lineWidth = 1;
+      for (let i = 0; i < 5; i++) { c.globalAlpha = .09 - i * .012; path(c, [[278-i*2,438+i*6],[300+i*3,438+i*6]]); c.stroke(); }
+      c.restore();
+    }
     this.lamp(c, 291, 944, 66, '255,190,96', .18 + Math.sin(this.t * .9) * .05);
     const chase = this.t - (this.lights.multiball ?? -10);
     if (chase < 3.2) {
@@ -925,14 +953,15 @@ export class Renderer {
 
     // --- inserts ---
     [234, 289, 344].forEach((x, i) => {
-      const lit = game.moon[i] || (attract && Math.sin(this.t * 1.6 + i * 1.1) > .55);
+      const lit = game.moon[i] || (guidance && i === 1 && objective.shots.includes('lane')) || (attract && Math.sin(this.t * 1.6 + i * 1.1) > .55);
       this.insert(c, 'ins-moon', x, 193, 25, lit, '244,224,160');
     });
     const orbitReady = !multiball && game.moon.filter(Boolean).length < 3;
     this.insert(c, 'arrow-moon', 106, 400, 30, orbitReady || attract, '180,220,255');
     this.insert(c, 'arrow-water', 490, 400, 30, orbitReady || attract, '180,220,255');
     const jackpotPulse = multiball ? Math.max(0, .35 - (this.t - (this.lights.scoop ?? -9)) * .7) : 0;
-    for (const x of [246, 338]) this.insert(c, 'rect-torii', x, 150, 22, multiball || attract, '255,170,120', jackpotPulse);
+    for (const x of [246, 338]) this.insert(c, 'rect-torii', x, 150, 22, multiball || attract || (guidance && objective.shots.includes('torii')), '255,202,120', jackpotPulse);
+    if (guidance && objective.shots.includes('torii')) for (const x of [246, 338]) this.lamp(c, x, 150, 24, '255,215,138', pulse * .6);
     targets.forEach((p, i) => {
       // In attract the banks run a chase, the way a machine idles between games.
       const lit = attract ? Math.sin(this.t * 2.4 - i * .8) > .35 : i < 3 ? game.koi[i] : game.sakura[i - 3];
@@ -940,6 +969,8 @@ export class Renderer {
       this.targetFace(c, p, i, lit);
       if (lit || hit) this.lamp(c, p.x, p.y, 29, i < 3 ? '140,235,200' : '255,160,190', hit ? .32 : .18);
       this.insert(c, i < 3 ? 'ins-koi' : 'lit-sakura', p.x + p.side * 26, p.y, 23, lit, i < 3 ? '140,225,195' : '255,165,195');
+      const wanted = objective.shots.includes(i < 3 ? 'koi' : 'sakura') && (garden.finaleActive || !lit);
+      if (guidance && wanted) this.lamp(c, p.x + p.side * 26, p.y, 20, '255,224,160', pulse);
     });
     const saveLit = game.time < game.saveUntil || (attract && Math.sin(this.t * 1.1) > .1);
     this.insert(c, 'drop-moon', 119, 786, 18, saveLit, '250,220,150');
@@ -957,7 +988,9 @@ export class Renderer {
       this.lamp(c, b.x, b.y, 62 + (impact + idle) * 16, '255,186,104', .22 + impact * .3 + idle);
       circle(c, b.x + 2, b.y + 9, 37, '#000a');
       circle(c, b.x, b.y, 36.5, '#12060a');
-      this.sprite(c, caps[i], b.x, b.y - 2 - impact * 3, 78);
+      const golden = i === 2 && (garden.lotusActive || (garden.finaleActive && garden.step === 3));
+      this.sprite(c, golden ? 'bumper-golden' : caps[i], b.x, b.y - 2 - impact * 3, 78);
+      if (golden) { circle(c, b.x, b.y, 35.5, null, '#efd077', 1); this.lamp(c, b.x, b.y, 43, '255,216,120', pulse * .38); }
       if (impact) {
         circle(c, b.x, b.y, 36.5, null, `rgba(255,229,166,${impact * .65})`, 1.4);
         this.lamp(c, b.x, b.y, 46, '255,245,215', impact * .35);
@@ -987,6 +1020,18 @@ export class Renderer {
     const spinning = Math.abs(game.physics.spinnerSpeed);
     if (spinning > 3) this.lamp(c, 296, 598, 44, '210,235,190', Math.min(.45, spinning / 90));
     for (const x of [248, 344]) this.insert(c, 'dia-swirl', x, 598, 20, spinning > 3 || attract, '150,205,235');
+    if (guidance && objective.shots.includes('spinner')) for (const x of [248,344]) this.lamp(c, x, 598, 22, '255,223,142', pulse);
+    // Lotus charge: four insert lenses above the spinner, one lit per pass. As flat
+    // 6 × 3 bars they measured about 5 × 2 px on screen and could not be read in play.
+    for (let i = 0; i < LOTUS_CHARGE; i++) {
+      const x = 296 - (LOTUS_CHARGE - 1) * 5.5 + i * 11, y = 570;
+      const lit = garden.lotusActive || i < garden.charge;
+      circle(c, x + .8, y + 1.6, 4.4, '#000a');
+      circle(c, x, y, 4.2, '#0b1219', '#a8863f', 1);
+      circle(c, x, y, 3.2, lit ? '#f5d487' : '#1a2b2f');
+      if (lit) { this.lamp(c, x, y, 11, '255,214,130', .42); circle(c, x - 1, y - 1.1, 1.1, '#fff6da'); }
+      else circle(c, x - 1, y - 1.1, .9, '#d3e4ef44');
+    }
 
     // --- flippers and plunger ---
     for (let i = 0; i < game.physics.flippers.length; i++) this.flipper(c, game.physics.flippers[i], i === 1);

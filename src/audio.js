@@ -88,6 +88,12 @@ export class GardenAudio {
   event(e) {
     if (!this.ctx) return; const t = this.ctx.currentTime, type = e.type;
     if (t - (this.last[type] ?? -10) < .045) return; this.last[type] = t;
+    if (['lotusReady', 'lotusCollect', 'finaleStart', 'finaleStep', 'finaleWon', 'gardenSeal', 'lotusCharge', 'lotusBuild'].includes(type)) {
+      const notes = type === 'finaleWon' ? [0, 7, 12, 19, 24, 31] : type === 'finaleStart' ? [0, 7, 12, 19] : type === 'lotusCollect' ? [7, 12, 19, 24] : type === 'lotusReady' ? [0, 7, 12] : [7 + (e.step || e.charge || 0) * 2];
+      if (this.settings.sfx > 0 && notes.length > 2) this.duckMusic(.75, 1.1);
+      notes.forEach((n, i) => this.tone(293.66 * 2 ** (n / 12), .9, .065, 'sine', false, i * .11));
+      return;
+    }
     if (this.settings.sfx > 0 && ['jackpot', 'multiball', 'extra'].includes(type)) this.duckMusic(type === 'jackpot' ? .66 : .79, type === 'multiball' ? 1.8 : 1.1);
     if (type === 'flipperPress') { this.noise(.055, .65, 600); this.tone(105, .045, .2, 'triangle'); }
     else if (type.startsWith('bumper')) { this.tone(440 * 2 ** (Number(type.at(-1)) * 3 / 12), .38, .18, 'sine'); this.noise(.07, .3, 450); }

@@ -30,6 +30,10 @@ Na telefonie i tablecie dostępne są przyciski dotykowe. Przełączenie okna ws
 - **Sakura Bloom** — trzy prawe cele podnoszą mnożnik o jeden.
 - **Zen Flow** — różne punktowane strzały w odstępie do 5 s łączą się w combo. Combo 3 i 6 podnoszą mnożnik.
 - **Lotos** — co 12 bumperów mnożnik rośnie o jeden, maksymalnie ×8.
+- **Golden Lotus** — cztery przejścia przez spinner aktywują premię na 25 s. Zaczynasz od 5 000, centralny lotos dodaje 1 500 za trafienie, do 25 000. Torii odbiera premię z mnożnikami. Czas lub strata kuli kasuje nieodebraną premię; ball save ją zachowuje.
+- **Sakura przy ×8** — ukończony prawy bank daje dodatkowo 2 500 × mnożniki i +5 000 do obecnej lub następnej premii lotosu. Rezerwa na następny lotos ma limit 15 000 i wygasa po stracie kuli.
+- **Noc pełni** — Koi Run, Sakura Bloom i pierwszy jackpot dają trzy pieczęcie zachowywane między kulami. Po zakończeniu multiballa i premii lotosu kolejny strzał w torii rozpoczyna 45-sekundowy finał: dowolny lewy cel → dowolny prawy cel → spinner → centralny lotos → torii. Nagroda 50 000 przed mnożnikami, raz na grę. Po porażce pieczęcie zostają i finał można ponowić. Multiball zakwalifikowany podczas finału czeka do jego rozstrzygnięcia.
+- **Prowadzenie** — pasek nad stołem pokazuje następny cel, zegar premii oraz pieczęcie. Odpowiednie istniejące inserty wskazują strzał; ograniczenie ruchu wyłącza pulsowanie nowych wskazówek. Pauza zatrzymuje wszystkie zegary.
 - **Ball save** — 12 s po wyrzucie. Uratowana kula wraca widocznym kickoutem pod torii.
 - **Dodatkowa kula** — raz na grę po osiągnięciu 150 000 punktów.
 - **Bonus** — 8% bazowych nagród, na końcu kuli pomnożone przez bieżący mnożnik.

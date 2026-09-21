@@ -27,6 +27,11 @@ body {
     #050f14;
 }
 button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent }
+/* A machine, not a document: a long press anywhere on the cabinet must not select
+   text or open the iOS callout. Dialog copy stays selectable for anyone who wants it. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none }
+dialog p, dialog dd, dialog .rule-grid p { -webkit-user-select: text; user-select: text }
+.touch-controls, .touch-controls * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none }
 button:focus-visible, canvas:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 5px }
 button:disabled { opacity: .55; cursor: wait }
 [hidden] { display: none !important }
@@ -258,6 +263,11 @@ dialog.wide { width: min(700px, calc(100vw - 34px)); padding: 26px 34px 24px }
 dialog.wide h2 { font-size: 27px; margin: 4px 0 8px }
 dialog .lead { font-size: 12px; margin: 0 0 4px }
 /* Two columns keep the whole rulebook on one screen; the card must never scroll. */
+.guide-tabs { display: flex; gap: 0; margin: 10px 0 2px; border: 1px solid #d8b87166; width: max-content; clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px) }
+.guide-tabs button { border: 0; padding: 7px 16px; font-size: 9px; letter-spacing: 1.8px; text-transform: uppercase; color: #d9c69c; background: #00000038 }
+.guide-tabs button + button { border-left: 1px solid #d8b87144 }
+.guide-tabs button[aria-selected=true] { color: #26140f; background: var(--bezel); box-shadow: inset 0 1px 0 #fffaea }
+.guide-tabs button:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px }
 .rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 26px; margin: 14px 0 2px }
 .rule-grid section { min-width: 0 }
 .rule-grid h3 { font-family: Georgia, serif; font-size: 13px; font-weight: 400; color: var(--gold-bright); margin: 0 0 3px }
@@ -363,8 +373,11 @@ body.reduced-motion .table-message { transition: opacity .15s; transform: none }
   .table-aura { inset: 0 }
   dialog, dialog.wide { padding: 26px 22px }
   dialog h2, dialog.wide h2 { font-size: 24px }
-  .rule-grid { grid-template-columns: 1fr; gap: 12px }
-  .plastics-strip img { width: 32px }
+  .rule-grid { grid-template-columns: 1fr; gap: 10px }
+  /* On a phone every line counts: the decorative strip gives way to the rules. */
+  .plastics-strip { display: none }
+  .rule-grid p { font-size: 10.5px; line-height: 1.5 }
+  .guide-tabs { margin-top: 6px }
 }
 @media (max-height: 600px) and (min-width: 751px) {
   .intro, .small-credit, .edition { display: none }
@@ -393,4 +406,45 @@ body.reduced-motion .table-message { transition: opacity .15s; transform: none }
   .table-message { left: 1%; right: 1%; height: 11%; bottom: 0 }
   .table-message strong { font-size: 8px; letter-spacing: .4px }
   .table-message span { font-size: 6px; margin-top: 1px }
+}
+/* A dedicated instruction rail leaves the playfield and ball unobstructed. */
+/* The objective rail is built like the score display: backlit glass behind a brass
+   bezel with clipped corners, so it reads as the machine's marquee, not a web banner. */
+.objective-card {
+  position: absolute; bottom: calc(100% + 8px); left: 4%; right: 4%; min-height: 50px; padding: 8px 12px 6px; text-align: center; pointer-events: none;
+  background: var(--glass); border: 1px solid #00000099;
+  box-shadow: inset 0 3px 14px #000000b0, inset 0 0 36px #10485530, 0 0 0 1px #c9a35a70, 0 6px 18px #0007;
+  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 9px, 100% calc(100% - 9px), calc(100% - 9px) 100%, 9px 100%, 0 calc(100% - 9px), 0 9px);
+}
+.objective-card:after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, #00000030 0 1px, transparent 1px 3px) }
+.objective-card strong { display: block; color: #ffe9b8; font-family: Georgia, serif; font-size: clamp(10px, .78vw, 13px); letter-spacing: 1.6px; font-weight: 400; text-shadow: 0 0 8px #f0b74a90 }
+.objective-card > span { display: block; color: #bcd0c8; font-size: 10px; margin-top: 3px; letter-spacing: .3px }
+#garden-seals { display: flex; gap: 12px; justify-content: center; margin-top: 5px; }
+#garden-seals i { font-style: normal; font-size: 7px; letter-spacing: 1px; color: #8ba19a; }
+#garden-seals i::before { content: '◇'; margin-right: 4px; }
+#garden-seals i.lit { color: #f6d894; text-shadow: 0 0 7px #eec76b55; }
+#garden-seals i.lit::before { content: '◆'; }
+.objective-card[data-mode=lotus], .objective-card[data-mode=ready] { background: linear-gradient(175deg, #2a1e08, #3a2a0c 45%, #1a1206); box-shadow: inset 0 3px 14px #000000b0, inset 0 0 30px #f0b74a30, 0 0 0 1px #efce77, 0 0 18px #efce7740 }
+.objective-card[data-mode=finale] { background: linear-gradient(175deg, #0c1c2e, #15304a 45%, #08121e); box-shadow: inset 0 3px 14px #000000b0, inset 0 0 30px #8fc4f030, 0 0 0 1px #b5d6eb, 0 0 18px #b5d6eb40 }
+@media (min-width: 751px) {
+  .game-shell { padding-top: 125px; }
+  .table-stage { height: min(calc(100dvh - 178px), 1020px); max-height: calc(100dvh - 178px); }
+}
+/* Wide screens: the header's empty centre carries the rail like a backbox marquee, so
+   the table keeps nearly its full height instead of losing 74 px to the rail. */
+@media (min-width: 1100px) and (min-height: 601px) {
+  .game-shell { padding-top: 72px; }
+  .table-stage { height: min(calc(100dvh - 120px), 1044px); max-height: none; }
+  .objective-card { bottom: calc(100% + 5px); }
+}
+@media (max-width: 750px) {
+  .table-stage { top: 180px; height: calc(100dvh - 247px); }
+  .objective-card { width: min(350px, calc(100vw - 24px)); left: 50%; right: auto; transform: translateX(-50%); }
+  .objective-card strong { font-size: 10px; }
+  .objective-card > span { font-size: 9px; }
+}
+@media (max-height: 600px) and (min-width: 751px) {
+  .game-shell { padding-top: 102px; }
+  .table-stage { height: calc(100dvh - 134px); max-height: calc(100dvh - 134px); }
+  .objective-card { width: 270px; left: 50%; right: auto; transform: translateX(-50%); }
 }

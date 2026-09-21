@@ -9,13 +9,14 @@ const storage = { read(key, fallback) { try { const value = localStorage.getItem
 const storedHigh = storage.read('night-garden-best', 0);
 const game = new Game(e => {
   renderer?.event(e); audio.event(e);
+  if (e.type === 'reset') { messageUntil = 0; $('message').classList.remove('visible'); }
   if (e.type === 'message') {
     // The table already carries one live combo readout; the HUD shows its multiplier.
     if (e.kind === 'combo') return;
     const box = $('message');
     // Give a major award time to read before another ordinary target message.
-    if (performance.now() < messageUntil && ['multiball', 'jackpot', 'extra'].includes(box.dataset.kind)
-      && ['combo', 'moon', 'koi', 'sakura', 'multiplier', 'skill'].includes(e.kind)) return;
+    const priority = { tilt: 5, finale: 4, garden: 3, multiball: 2, jackpot: 2, extra: 2 };
+    if (performance.now() < messageUntil && (priority[box.dataset.kind] || 0) > (priority[e.kind] || 0)) return;
     box.querySelector('strong').textContent = e.title; box.querySelector('span').textContent = e.subtitle;
     box.dataset.kind = e.kind;
     box.classList.add('visible'); messageUntil = performance.now() + (['multiball', 'jackpot'].includes(e.kind) ? 3500 : 2700);
@@ -28,12 +29,22 @@ for (const key of ['master', 'music', 'sfx']) if (Number.isFinite(preferences?.[
 const reduced = storage.read('night-garden-motion', matchMedia('(prefers-reduced-motion: reduce)').matches);
 document.body.classList.toggle('reduced-motion', !!reduced);
 function persist() { if (game.highScore > saved) { storage.write('night-garden-best', game.highScore); saved = game.highScore; } }
+// Polish takes three plural forms: 1 jackpot, 2–4 jackpoty (not 12–14), 5+ jackpotów.
+const count = (n, one, few, many) => `${n} ${n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many}`;
 const format = n => Math.floor(n).toLocaleString('pl-PL').replace(/\u00a0/g, ' ');
 async function begin() {
   closeDialog(false); audio.init().catch(() => {}); game.start(); $('start-panel').hidden = true; $('live-panel').hidden = false;
   $('table').focus({ preventScroll: true }); lastUi = -1; updateUI();
 }
 function updateUI() {
+  const objective = game.garden.objective();
+  $('objective-title').textContent = objective.title;
+  $('objective-detail').textContent = objective.detail;
+  $('objective-card').dataset.mode = objective.key;
+  $('garden-seals').querySelectorAll('[data-seal]').forEach(el => {
+    const lit = game.garden.seals[el.dataset.seal]; el.classList.toggle('lit', lit);
+    el.setAttribute('aria-label', `${el.textContent}: ${lit ? 'zdobyta' : 'do zdobycia'}`);
+  });
   $('score').textContent = game.score ? format(game.score) : '000 000'; $('best').textContent = format(game.highScore);
   $('score').style.setProperty('--score-chars', $('score').textContent.length);
   $('ball-number').textContent = String(game.ballNumber).padStart(2, '0'); $('multiplier').textContent = `×${game.multiplier}`;
@@ -47,7 +58,7 @@ function updateUI() {
   $('koi-progress').querySelectorAll('i').forEach((el, i) => el.classList.toggle('lit', game.koi[i]));
   const ready = game.state === 'playing' && game.physics.balls.some(b => b.ready);
   $('launch-hint').hidden = !ready; $('charge-meter').style.width = `${game.charge * 100}%`;
-  $('active-mode').textContent = game.tilted ? 'TILT · OCZEKIWANIE NA KULĘ' : game.multiball ? `MOONLIGHT MULTIBALL · ${game.physics.balls.length} KULE` : game.koiUntil > game.time ? `KOI RUN · ${Math.ceil(game.koiUntil - game.time)}s · PUNKTY ×2` : game.state === 'attract' ? 'SPOKÓJ PRZED PIERWSZĄ KULĄ' : game.extraBalls ? 'DODATKOWA KULA ZDOBYTA' : 'PODĄŻAJ ZA ŚWIATŁEM';
+  $('active-mode').textContent = game.tilted ? 'TILT · OCZEKIWANIE NA KULĘ' : game.garden.finaleActive ? `NOC PEŁNI · ${game.garden.step}/5 CELÓW` : game.multiball ? `MOONLIGHT MULTIBALL · ${game.physics.balls.length} KULE` : game.garden.completed ? 'NOC PEŁNI UKOŃCZONA' : game.garden.qualified ? 'TRZY PIECZĘCIE · FINAŁ GOTOWY' : game.koiUntil > game.time ? `KOI RUN · ${Math.ceil(game.koiUntil - game.time)}s · PUNKTY ×2` : game.extraBalls ? 'DODATKOWA KULA ZDOBYTA' : 'KOI · SAKURA · JACKPOT → NOC PEŁNI';
   $('pause-button').textContent = game.state === 'paused' ? '▷' : 'Ⅱ';
   $('table').setAttribute('aria-label', `Stół pinball. Wynik ${game.score}. Kula ${game.ballNumber} z 3. ${game.multiball ? 'Multiball.' : ''}`);
 }
@@ -71,8 +82,15 @@ function showDialog(kind) {
   const emblem = crest ? `<img class="dialog-crest" src="public/${crest}.png" alt="" aria-hidden="true">` : '';
   if (kind === 'pause') content.innerHTML = emblem + `<p class="eyebrow">CHWILA DLA SIEBIE</p><h2>Ogród poczeka.</h2><p>Twój wynik i kula są bezpieczne.<br>Wróć, gdy zechcesz złapać rytm.</p><button class="garden-button" data-action="resume"><span>Wróć do ogrodu</span><b>↗</b></button><button class="secondary-button" data-action="restart">ROZPOCZNIJ OD NOWA</button>`;
   if (kind === 'restart') content.innerHTML = emblem + `<p class="eyebrow">NOWA NOC W OGRODZIE</p><h2>Jeszcze raz?</h2><p>Obecna rozgrywka zakończy się. Rekord zostanie zachowany.</p><button class="garden-button" data-action="new"><span>Nowa gra</span><b>↗</b></button><button class="secondary-button" data-action="resume">WRÓĆ DO OBECNEJ GRY</button>`;
-  if (kind === 'gameover') content.innerHTML = emblem + `<p class="eyebrow">DZIĘKUJEMY ZA TĘ NOC</p><h2>${game.score >= game.highScore && game.score > 0 ? 'Nowy blask ogrodu.' : 'Piękna podróż.'}</h2><div class="final-score">${format(game.score)}</div><p>Rekord ogrodu: <strong>${format(game.highScore)}</strong><br>${game.stats.bumpers} trafień lotosu · ${game.stats.targets} trafień celów · ${game.stats.jackpots} jackpotów</p><button class="garden-button" data-action="new"><span>Jeszcze jedna gra</span><b>↗</b></button>`;
-  if (kind === 'help') content.innerHTML = `<div class="plastics-strip" aria-hidden="true"><img src="public/plaq-branch.png" alt=""><img src="public/plaq-bamboo.png" alt=""><img src="public/plaq-lantern.png" alt=""><img src="public/plaq-fan.png" alt=""></div><p class="eyebrow">ZNAJDŹ SWÓJ RYTM</p><h2>Mały przewodnik.</h2><p class="lead">Trzy kule. Celuj, reaguj i podążaj za światłem.</p><div class="rule-grid"><section><h3>Flippery<span>A / D · ← / → · Shift</span></h3><p>Przytrzymaj, aby podnieść. Puść i naciśnij ponownie, żeby uderzyć. Flippery obracają też światła górnych przejazdów.</p></section><section><h3>Wyrzutnia<span>przytrzymaj i puść Spację</span></h3><p>Siła rośnie na pasku. Środkowy przejazd to skill shot: 5 000 punktów i dłuższa ochrona kuli.</p></section><section><h3>Moonlight Multiball</h3><p>Zapal trzy światła przejazdów — orbita albo torii dodaje brakujące. Potem torii: jackpot 15 000, co trzeci super jackpot 50 000.</p></section><section><h3>Koi run · Sakura bloom</h3><p>Trzy lewe cele: podwójne punkty przez 22 s. Trzy prawe: mnożnik +1. Co 12 bumperów też +1, maksymalnie ×8.</p></section><section><h3>Zen flow</h3><p>Łącz różne cele, spinner, przejazdy i orbity w ciągu 5 s. Combo 3 i 6 podnoszą mnożnik.</p></section><section><h3>Ochrona i nagrody</h3><p>Ball save trwa 12 s. Przy 150 000 dostajesz dodatkową kulę. Koniec kuli nalicza bonus × mnożnik.</p></section><section><h3>Nudge<span>X / Z / C</span></h3><p>Delikatnie potrząśnij stołem. Trzy szybkie potrząśnięcia to tilt: flippery, punkty i bonus milkną do następnej kuli.</p></section><section><h3>Pauza · Pełny ekran<span>P / Esc · F</span></h3><p>Przełączenie okna wstrzymuje grę automatycznie.</p></section></div><button class="garden-button" data-action="resume"><span>Rozumiem</span><b>↗</b></button>`;
+  if (kind === 'gameover') content.innerHTML = emblem + `<p class="eyebrow">DZIĘKUJEMY ZA TĘ NOC</p><h2>${game.score >= game.highScore && game.score > 0 ? 'Nowy blask ogrodu.' : 'Piękna podróż.'}</h2><div class="final-score">${format(game.score)}</div><p>Rekord ogrodu: <strong>${format(game.highScore)}</strong><br>${count(game.stats.bumpers, 'trafienie', 'trafienia', 'trafień')} lotosu · ${count(game.stats.targets, 'trafienie', 'trafienia', 'trafień')} celów · ${count(game.stats.jackpots, 'jackpot', 'jackpoty', 'jackpotów')}</p><button class="garden-button" data-action="new"><span>Jeszcze jedna gra</span><b>↗</b></button>`;
+  // Two pages keep the rulebook on one screen each: the mode rules pushed the single
+  // page past the window again and brought the scrollbar back.
+  if (kind === 'help') content.innerHTML = `<div class="plastics-strip" aria-hidden="true"><img src="public/plaq-branch.png" alt=""><img src="public/plaq-bamboo.png" alt=""><img src="public/plaq-lantern.png" alt=""><img src="public/plaq-fan.png" alt=""></div><p class="eyebrow">ZNAJDŹ SWÓJ RYTM</p><h2>Mały przewodnik.</h2><div class="guide-tabs" role="tablist"><button role="tab" aria-selected="true" data-pane="basics">Podstawy</button><button role="tab" aria-selected="false" data-pane="modes">Tryby ogrodu</button></div><div class="rule-grid" data-pane="basics" role="tabpanel"><section><h3>Flippery<span>A / D · ← / → · Shift</span></h3><p>Przytrzymaj, aby podnieść. Puść i naciśnij ponownie, żeby uderzyć. Flippery obracają też światła górnych przejazdów.</p></section><section><h3>Wyrzutnia<span>przytrzymaj i puść Spację</span></h3><p>Siła rośnie na pasku. Środkowy przejazd to skill shot: 5 000 punktów i dłuższa ochrona kuli.</p></section><section><h3>Moonlight Multiball</h3><p>Zapal trzy światła przejazdów — orbita albo torii dodaje brakujące. Potem torii: jackpot 15 000, co trzeci super jackpot 50 000.</p></section><section><h3>Koi run · Sakura bloom</h3><p>Trzy lewe cele: podwójne punkty przez 22 s. Trzy prawe: mnożnik +1. Co 12 bumperów też +1, maksymalnie ×8.</p></section><section><h3>Zen flow</h3><p>Łącz różne cele, spinner, przejazdy i orbity w ciągu 5 s. Combo 3 i 6 podnoszą mnożnik.</p></section><section><h3>Ochrona i nagrody</h3><p>Ball save trwa 12 s. Przy 150 000 dostajesz dodatkową kulę. Koniec kuli nalicza bonus × mnożnik.</p></section><section><h3>Nudge<span>X / Z / C</span></h3><p>Delikatnie potrząśnij stołem. Trzy szybkie potrząśnięcia to tilt: flippery, punkty i bonus milkną do następnej kuli.</p></section><section><h3>Pauza · Pełny ekran<span>P / Esc · F</span></h3><p>Przełączenie okna wstrzymuje grę automatycznie.</p></section></div><div class="rule-grid" data-pane="modes" role="tabpanel" hidden><section><h3>Golden Lotus<span>spinner ×4</span></h3><p>Cztery przejścia przez spinner budzą lotos na 25 s. Premia startuje od 5 000, każde trafienie centralnego bumpera dodaje 1 500, do 25 000. Torii odbiera ją z mnożnikami; po czasie lub stracie kuli przepada.</p></section><section><h3>Sakura przy ×8<span>prawy bank</span></h3><p>Gdy mnożnik jest już pełny, komplet prawych celów daje 2 500 × mnożniki i +5 000 do obecnej albo następnej premii lotosu. Rezerwa do 15 000 trwa do końca kuli.</p></section><section><h3>Trzy pieczęcie<span>koi · sakura · jackpot</span></h3><p>Koi Run, Sakura Bloom i pierwszy jackpot zostawiają pieczęcie, które przechodzą na kolejne kule. Trzy razem otwierają finał.</p></section><section><h3>Noc pełni<span>finał w torii</span></h3><p>Po multiballu i lotosie traf w torii. Masz 45 s: lewy cel → prawy cel → spinner → centralny lotos → torii. Nagroda 50 000 × mnożniki, raz na grę; nieudany finał można ponowić.</p></section><section><h3>Pasek nad stołem</h3><p>Zawsze pokazuje następny strzał, zegar trybu i zdobyte pieczęcie. Wskazany cel pulsuje też na samym stole.</p></section></div><button class="garden-button" data-action="resume"><span>Rozumiem</span><b>↗</b></button>`;
+  if (kind === 'help') content.querySelectorAll('.guide-tabs [data-pane]').forEach(tab => tab.addEventListener('click', () => {
+    content.querySelectorAll('.guide-tabs [data-pane]').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+    content.querySelectorAll('.rule-grid[data-pane]').forEach(pane => { pane.hidden = pane.dataset.pane !== tab.dataset.pane; });
+  }));
+  if (kind === 'gameover') content.querySelector('.final-score').insertAdjacentHTML('afterend', `<p>${game.garden.completed ? 'Noc pełni ukończona' : `Pieczęcie ogrodu: ${Object.values(game.garden.seals).filter(Boolean).length} / 3`} · złoty lotos odebrany ${count(game.garden.collected, 'raz', 'razy', 'razy')}</p>`);
   if (kind === 'sound') {
     content.innerHTML = emblem + `<p class="eyebrow">DŹWIĘKI NOCNEGO OGRODU</p><h2>Twój spokojny mix.</h2><p>Muzyka ogrodu, szum wody i delikatne dźwięki mechaniki.</p>${[['master', 'Master'], ['music', 'Music'], ['sfx', 'SFX']].map(([id, label]) => `<label class="volume">${label}<input type="range" min="0" max="100" value="${Math.round(audio.settings[id] * 100)}" data-volume="${id}" aria-label="${label}"><output>${Math.round(audio.settings[id] * 100)}%</output></label>`).join('')}<label for="reduce-motion"><input id="reduce-motion" type="checkbox" ${renderer.reducedMotion ? 'checked' : ''}> Ogranicz płatki, smugi i ruch ekranu</label><button class="garden-button" data-action="resume"><span>Gotowe</span><b>↗</b></button>`;
     content.querySelectorAll('[data-volume]').forEach(el => el.addEventListener('input', () => { audio.settings[el.dataset.volume] = Number(el.value) / 100; el.nextElementSibling.textContent = `${el.value}%`; audio.apply(); storage.write('night-garden-audio', audio.settings); }));
@@ -120,6 +138,13 @@ $('start-button').addEventListener('click', begin); $('pause-button').addEventLi
 $('help-button').addEventListener('click', () => showDialog('help')); $('sound-button').addEventListener('click', () => showDialog('sound')); $('fullscreen-button').addEventListener('click', fullscreen);
 $('menu-dialog').querySelector('.close-dialog').addEventListener('click', () => closeDialog());
 $('menu-dialog').addEventListener('cancel', e => { e.preventDefault(); closeDialog(); });
+// Holding a touch control must never start a text selection, the magnifier or the
+// long-press menu. Safari decides that from touch events, so cancelling pointerdown
+// alone is not enough; CSS turns selection off and these listeners stop the menu.
+for (const blocked of ['contextmenu', 'selectstart']) {
+  document.querySelector('.touch-controls').addEventListener(blocked, e => e.preventDefault());
+  $('table').addEventListener(blocked, e => e.preventDefault());
+}
 function touchHold(id, start, end) {
   const el = $(id); el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); start(); });
   el.addEventListener('pointerup', e => { e.preventDefault(); end(); }); el.addEventListener('pointercancel', end); el.addEventListener('lostpointercapture', end);
